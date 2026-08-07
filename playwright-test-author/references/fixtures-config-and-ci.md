@@ -26,6 +26,7 @@ Extend the base `test` to provide ready-to-use objects. The pattern has three ph
 ```ts
 // fixtures/test.ts
 import { test as base, expect } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { LoginPage } from '../pages/login-page';
 
 type Fixtures = {
@@ -40,7 +41,7 @@ export const test = base.extend<Fixtures>({
 
   // A data factory that creates a user via API and cleans it up afterwards.
   freshUser: async ({ request }, use) => {
-    const email = `user_${crypto.randomUUID()}@example.com`;
+    const email = `user_${randomUUID()}@example.com`;
     const password = 'correct-horse';
     const created = await request.post('/api/users', { data: { email, password } });
     // Seed must succeed before the test runs. Otherwise failures downstream
@@ -72,35 +73,48 @@ The teardown (deleting the user) runs automatically after every test that used t
 
 Worker-scoped fixtures initialise once per worker process and are shared across the tests that worker runs. Mark with `{ scope: 'worker' }`, and don't put per-test mutable state there.
 
-The highest-value use for worker scope is **per-worker auth**. If every parallel test reuses one shared storageState, every parallel test is acting as the same user. One test mutating that user's state while another asserts on it is exactly the shared-mutable-state flake the isolation rules are meant to prevent. Give each worker its own account instead. This is the same pattern shown in `anti-flake.md` under "Auth once per worker, reuse everywhere", expressed here as a fixture:
+The highest-value use for worker scope is **per-worker auth**. If every parallel test reuses one shared storageState, every parallel test is acting as the same user. One test mutating that user's state while another asserts on it is exactly the shared-mutable-state flake the isolation rules are meant to prevent. Give each worker its own account instead. This is the same fixture shown in `anti-flake.md` under "Auth once per worker, reuse everywhere", with the config wiring alongside it:
 
 ```ts
+// fixtures/auth.ts
 import { test as base, expect, request } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
-type WorkerFixtures = {
-  workerAccount: { email: string; password: string };
-};
+export const test = base.extend<{}, { workerStorageState: string }>({
+  // Runs once per worker: provision an account, log in, save the session.
+  workerStorageState: [async ({ browser }, use, workerInfo) => {
+    const authFile = path.resolve(`playwright/.auth/user-${workerInfo.parallelIndex}.json`);
+    fs.mkdirSync(path.dirname(authFile), { recursive: true });
 
-export const test = base.extend<{}, WorkerFixtures>({
-  workerAccount: [async ({}, use, workerInfo) => {
-    const email = `worker_${workerInfo.workerIndex}_${crypto.randomUUID()}@example.com`;
+    const email = `worker_${workerInfo.parallelIndex}_${randomUUID()}@example.com`;
     const password = 'correct-horse';
-
-    // Provision via API. Assert the seed. A failure here shouldn't look
-    // like a login bug later.
     const api = await request.newContext({ baseURL: process.env.BASE_URL });
     const created = await api.post('/api/users', { data: { email, password } });
     expect(created.ok(), `worker seed failed: ${created.status()}`).toBeTruthy();
     await api.dispose();
 
-    await use({ email, password });
-    // (Optionally delete the account here; some suites keep worker accounts
-    // for the duration of a CI run and clean them up out-of-band.)
+    const page = await browser.newPage();
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password').fill(password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL('/dashboard');
+    await page.context().storageState({ path: authFile });
+    await page.close();
+
+    await use(authFile);
   }, { scope: 'worker' }],
+
+  // Override the built-in storageState so every test in the worker reuses it.
+  storageState: async ({ workerStorageState }, use) => {
+    await use(workerStorageState);
+  },
 });
 ```
 
-The `auth.setup.ts` variant in `anti-flake.md` is the same idea packaged as a setup project (it writes storageState to a per-worker file so the config's `storageState` function reads back the right file per worker). Pick whichever suits your suite; do not mix them.
+Because the fixture overrides the built-in `storageState`, tests that import this `test` start logged in with no extra wiring. Don't try to do this with a `setup` project: that project's test runs once, on one worker, so it writes a single storage-state file, and the other workers read a file that never got created. The fixture runs once per worker, which is the only place that per-worker granularity exists. A `setup` project is the right tool for a *single shared* account across the whole suite, not for one account per worker.
 
 Automatic fixtures (`{ auto: true }`) run for every test without being requested. Good for cross-cutting concerns like attaching logs or a trace on failure.
 
@@ -133,37 +147,13 @@ export default defineConfig({
   },
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [['html'], ['github']] : 'list',
+  // Per-worker auth is handled by the worker-scoped fixture above: specs import
+  // that extended `test`, which overrides storageState, so there's no `setup`
+  // project and no per-project storageState here.
   projects: [
-    { name: 'setup', testMatch: /auth\.setup\.ts/ },
-    {
-      name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        // Function form: resolved per test, so each worker reads its own
-        // storageState file written by auth.setup.ts.
-        storageState: ({}, use) =>
-          use(`playwright/.auth/user-${test.info().parallelIndex}.json`),
-      },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'firefox',
-      use: {
-        ...devices['Desktop Firefox'],
-        storageState: ({}, use) =>
-          use(`playwright/.auth/user-${test.info().parallelIndex}.json`),
-      },
-      dependencies: ['setup'],
-    },
-    {
-      name: 'webkit',
-      use: {
-        ...devices['Desktop Safari'],
-        storageState: ({}, use) =>
-          use(`playwright/.auth/user-${test.info().parallelIndex}.json`),
-      },
-      dependencies: ['setup'],
-    },
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
 });
 ```

@@ -109,12 +109,25 @@ test('a placed order appears in the order history UI', async ({ page, request })
 
 ## Cleanup
 
-State that leaks between runs is a slow-building flake. If a test creates a record, delete it afterward so the environment stays clean and repeatable:
+State that leaks between runs is a slow-building flake. If a test creates a record, delete it afterward so the environment stays clean and repeatable.
+
+Do the create and the delete in a fixture, not in a `test.afterEach` that reads a module-level `let createdId`. That module-level variable is shared mutable state: two tests in the same file overwrite it under parallelism, and a test that creates more than one record only cleans up the last. A fixture ties each record's cleanup to the test that made it.
 
 ```ts
-test.afterEach(async ({ request }) => {
-  if (createdId) await request.delete(`/api/orders/${createdId}`);
+// fixtures/order.ts
+import { test as base, expect } from '@playwright/test';
+
+export const test = base.extend<{ order: { id: string } }>({
+  order: async ({ request }, use) => {
+    const res = await request.post('/api/orders', { data: { sku: 'ABC-1', qty: 2 } });
+    expect(res.ok(), `order seed failed: ${res.status()}`).toBeTruthy();
+    const order = await res.json();
+
+    await use(order);                                 // <- test runs here
+
+    await request.delete(`/api/orders/${order.id}`);  // <- runs per test, even on failure
+  },
 });
 ```
 
-Per-test cleanup beats a big teardown, because a failure in one test won't strand data for the others.
+The delete runs after every test that asked for an `order`, including the ones that fail, and each test removes exactly what it created. Per-test cleanup beats a big teardown, because a failure in one test won't strand data for the others.

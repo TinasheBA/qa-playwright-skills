@@ -47,64 +47,69 @@ You'll see the same pattern written as `Promise.all([page.waitForResponse(...), 
 
 ## Auth once *per worker*, reuse everywhere
 
-Logging in through the UI in every test is slow and a common flake source. Do it once in a setup project and reuse the saved session, but do it **per worker**, not once for the whole suite.
+Logging in through the UI in every test is slow and a common flake source. Log in once and reuse the saved session, but do it **per worker**, not once for the whole suite.
 
 Why per worker matters: if every parallel test uses the same storageState, every parallel test is acting as the same user. The moment one test mutates that user's state (deletes an order, changes a setting) while another asserts on it, you re-create the shared-mutable-state flake this skill is trying to prevent. Per-worker auth gives each parallel worker its own account, so per-test isolation actually holds under parallelism.
 
+Do this with a **worker-scoped fixture**, not a `setup` project. This one trips people up, so it's worth being exact. A `setup` project runs its test once, on a single worker, so it can only ever write one storage-state file. Point three parallel workers at `user-${parallelIndex}.json` and workers 1 and 2 read a file that was never written. A worker-scoped fixture runs once inside *each* worker process, which is the granularity you actually want: one account, one login, one saved session per worker.
+
 ```ts
-// auth.setup.ts
-import { test as setup, expect } from '@playwright/test';
+// fixtures/auth.ts
+import { test as base, expect, request } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-setup('authenticate per worker', async ({ page, request }, testInfo) => {
-  const workerIndex = testInfo.parallelIndex;
-  const authFile = path.resolve(`playwright/.auth/user-${workerIndex}.json`);
-  fs.mkdirSync(path.dirname(authFile), { recursive: true });
+export const test = base.extend<{}, { workerStorageState: string }>({
+  // Runs once per worker. Each worker gets its own account and its own file.
+  workerStorageState: [async ({ browser }, use, workerInfo) => {
+    const authFile = path.resolve(`playwright/.auth/user-${workerInfo.parallelIndex}.json`);
+    fs.mkdirSync(path.dirname(authFile), { recursive: true });
 
-  // Provision a dedicated user for this worker via API. Assert the seed.
-  const email = `worker_${workerIndex}_${crypto.randomUUID()}@example.com`;
-  const password = 'correct-horse';
-  const created = await request.post('/api/users', { data: { email, password } });
-  expect(created.ok(), 'seed user must be created before we log in as them').toBeTruthy();
+    // Provision a dedicated user for this worker via API, and assert the seed
+    // so a failed setup doesn't later read as a login bug.
+    const email = `worker_${workerInfo.parallelIndex}_${randomUUID()}@example.com`;
+    const password = 'correct-horse';
+    const api = await request.newContext({ baseURL: process.env.BASE_URL });
+    const created = await api.post('/api/users', { data: { email, password } });
+    expect(created.ok(), 'seed user must be created before we log in as them').toBeTruthy();
+    await api.dispose();
 
-  await page.goto('/login');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL('/dashboard');
-  await page.context().storageState({ path: authFile });
+    // Log in through the UI once, save the session for this worker.
+    const page = await browser.newPage();
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password').fill(password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL('/dashboard');
+    await page.context().storageState({ path: authFile });
+    await page.close();
+
+    await use(authFile);
+  }, { scope: 'worker' }],
+
+  // Every test in the worker starts from that saved session.
+  storageState: async ({ workerStorageState }, use) => {
+    await use(workerStorageState);
+  },
 });
 ```
 
-```ts
-// playwright.config.ts (excerpt)
-projects: [
-  { name: 'setup', testMatch: /auth\.setup\.ts/ },
-  {
-    name: 'e2e',
-    use: {
-      ...devices['Desktop Chrome'],
-      // Function form: resolved per worker at test start.
-      storageState: ({}, use) =>
-        use(`playwright/.auth/user-${test.info().parallelIndex}.json`),
-    },
-    dependencies: ['setup'],
-  },
-]
-```
+Import this `test` in your specs and each one starts already logged in, with no per-test UI login and no shared account across workers. Keep secrets in environment variables, never hard-coded, and add `playwright/.auth/` to `.gitignore`. The same fixture wired into `playwright.config.ts` is in `fixtures-config-and-ci.md`.
 
-Keep secrets in environment variables, never hard-coded. Add `playwright/.auth/` to `.gitignore`. If seeding a fresh user per worker is expensive against your environment, promote the setup into a `worker`-scoped fixture instead (pattern in `fixtures-config-and-ci.md`) so the account is provisioned once per worker process rather than once per suite run.
+One footgun in the snippet above: `randomUUID` comes from `node:crypto`. It's also there as a global, `crypto.randomUUID()`, on Node 18.17+ and 20+, but importing it works on any version and won't throw a `ReferenceError` on an older CI runner.
 
 ## Dynamic / unique test data
 
 Parallel workers collide when tests share the same fixed data. Generate unique values per test so any number of workers can run at once:
 
 ```ts
-const email = `user_${crypto.randomUUID()}@example.com`;
+import { randomUUID } from 'node:crypto';
+
+const email = `user_${randomUUID()}@example.com`;
 ```
 
-`crypto.randomUUID()` is bulletproof against collision. Timestamps can collide when two tests in the same worker start within the same millisecond, and appending a worker index only papers over that. UUID replaces both.
+`randomUUID()` is bulletproof against collision. Timestamps can collide when two tests in the same worker start within the same millisecond, and appending a worker index only papers over that. UUID replaces both.
 
 Create the data through the API where you can (fast, reliable) and delete it afterward so runs don't accumulate state. If a test creates a record, it should be responsible for removing it.
 

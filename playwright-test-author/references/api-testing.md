@@ -1,9 +1,6 @@
 # API Testing with Playwright
 
-Playwright ships an HTTP client (`APIRequestContext`, exposed as the `request`
-fixture), so API tests need no extra library. Use it for two jobs: testing APIs
-directly, and setting up/tearing down state for UI tests far faster than
-clicking through the app.
+Playwright ships an HTTP client (`APIRequestContext`, exposed as the `request` fixture), so API tests need no extra library. Use it for two jobs: testing APIs directly, and setting up or tearing down state for UI tests much faster than clicking through the app.
 
 ## Table of contents
 
@@ -28,14 +25,11 @@ test('GET /users/:id returns the user', async ({ request }) => {
 });
 ```
 
-Set `use: { baseURL: '...' }` in the config so tests use relative paths and
-switch environments by config, not by editing tests.
+Set `use: { baseURL: '...' }` in the config so tests use relative paths and you switch environments by config, not by editing tests.
 
 ## Assert status AND body
 
-A 200 with the wrong payload is still a bug. Check both the status and the shape
-of the response. `toMatchObject` with `expect.any(...)` verifies structure
-without pinning volatile values like timestamps or generated IDs:
+A 200 with the wrong payload is still a bug. Check both the status and the shape of the response. `toMatchObject` with `expect.any(...)` verifies structure without pinning volatile values like timestamps or generated IDs:
 
 ```ts
 expect(body).toMatchObject({
@@ -45,13 +39,11 @@ expect(body).toMatchObject({
 });
 ```
 
-For stronger contract checks, validate against a schema (e.g. with `zod` or
-`ajv`) — but keep it about the contract, not incidental data.
+For stronger contract checks, validate against a schema (e.g. with `zod` or `ajv`). Keep it about the contract, not incidental data.
 
 ## Cover the unhappy paths
 
-The happy path is the easy half. Most real defects hide in the error paths, so
-assert them deliberately:
+The happy path is the easy half. Most real defects hide in the error paths, so assert them deliberately:
 
 ```ts
 test('POST /users rejects a duplicate email', async ({ request }) => {
@@ -78,7 +70,7 @@ test('GET /admin requires auth', async ({ request }) => {
 For token auth, build a request context with default headers once:
 
 ```ts
-import { test as base, request } from '@playwright/test';
+import { test as base } from '@playwright/test';
 
 export const test = base.extend<{ api: import('@playwright/test').APIRequestContext }>({
   api: async ({ playwright }, use) => {
@@ -96,20 +88,20 @@ Keep tokens in environment variables, never in the test source.
 
 ## Hybrid: seed via API, verify via UI
 
-This is the highest-value pattern in a real suite. Creating state through the UI
-is slow and flaky; creating it through the API is fast and reliable. Do the
-setup via API and let the browser test cover only the step you actually care
-about:
+This is the highest-value pattern in a real suite. Creating state through the UI is slow and flaky. Creating it through the API is fast and reliable. Do the setup via API and let the browser test cover only the step you actually care about:
 
 ```ts
 test('a placed order appears in the order history UI', async ({ page, request }) => {
-  // Arrange — via API, not by clicking through checkout
+  // Arrange via API, not by clicking through checkout
   const res = await request.post('/api/orders', {
     data: { sku: 'ABC-1', qty: 2 },
   });
+  // Seed must succeed before the UI assertion is meaningful — otherwise a
+  // failed seed masquerades as a UI bug.
+  expect(res.ok(), `order seed failed: ${res.status()}`).toBeTruthy();
   const { id } = await res.json();
 
-  // Act + Assert — only the UI behaviour under test
+  // Act + Assert. Only the UI behaviour under test.
   await page.goto('/account/orders');
   await expect(page.getByRole('row', { name: new RegExp(id) })).toBeVisible();
 });
@@ -117,8 +109,7 @@ test('a placed order appears in the order history UI', async ({ page, request })
 
 ## Cleanup
 
-State that leaks between runs is a slow-building flake. If a test creates a
-record, delete it afterwards so the environment stays clean and repeatable:
+State that leaks between runs is a slow-building flake. If a test creates a record, delete it afterward so the environment stays clean and repeatable:
 
 ```ts
 test.afterEach(async ({ request }) => {
@@ -126,5 +117,4 @@ test.afterEach(async ({ request }) => {
 });
 ```
 
-Prefer per-test cleanup over a big teardown so a failure in one test doesn't
-strand data for the others.
+Per-test cleanup beats a big teardown, because a failure in one test won't strand data for the others.

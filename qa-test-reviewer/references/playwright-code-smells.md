@@ -1,6 +1,6 @@
 # Playwright / TypeScript Code Smells
 
-Concrete, locatable smells to look for when reviewing Playwright test code, each with the fix. This list catches **drift from the standard** the `playwright-test-author` skill teaches — a leftover `waitForTimeout`, a missing `await`, a structural selector. It is *not* a second opinion on the standard itself; the two skills agree on what "good" looks like by design, which is exactly why running only this checklist would miss any bug the standard doesn't already forbid. The reviewer's `SKILL.md` runs a rules-agnostic Pass C after this one to cover that gap. For each smell you find here, cite the location and give the one-line fix.
+Concrete, locatable smells to look for when reviewing Playwright test code, each with the fix. This list catches **drift from the standard** the `playwright-test-author` skill teaches: a leftover `waitForTimeout`, a missing `await`, a structural selector. It's not a second opinion on the standard itself. The two skills agree on what "good" looks like by design, which is exactly why running only this checklist would miss any bug the standard doesn't already forbid. The reviewer's `SKILL.md` runs a rules-agnostic Pass C after this one to cover that gap. For each smell you find here, cite the location and give the one-line fix.
 
 ## Flakiness smells (usually High severity, since they fail spuriously in CI)
 
@@ -28,7 +28,7 @@ await expect(page.getByText('Saved')).toBeVisible();
 
 **Structural selectors.** CSS or XPath tied to DOM shape (`.card > div:nth-child(3)`, `//div[2]/span`). Brittle and meaningless to a user. Fix: `getByRole`, `getByLabel`, `getByText`, or `getByTestId`.
 
-**Race around navigation or responses.** A click that triggers a request, followed by an assertion that assumes the response already landed. Fix: set up `page.waitForResponse(...)` *before* the click and await the returned promise after — either as `const p = page.waitForResponse(...); await click(); const res = await p;` or as `Promise.all([waitForResponse(...), click()])`. Both work; either is a fix.
+**Race around navigation or responses.** A click that triggers a request, followed by an assertion that assumes the response already landed. Fix: set up `page.waitForResponse(...)` *before* the click and await the returned promise after. Either as `const p = page.waitForResponse(...); await click(); const res = await p;` or as `Promise.all([waitForResponse(...), click()])`. Both work; either is a fix.
 
 **Reflexive `.first()` or `.nth(0)`** to dodge a strict-mode "resolved to N elements" error. Hides ambiguity and can mask a duplicate in the UI. Fix: narrow the locator (scope, accessible name) so it matches exactly one.
 

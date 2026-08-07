@@ -43,7 +43,7 @@ export const test = base.extend<Fixtures>({
     const email = `user_${crypto.randomUUID()}@example.com`;
     const password = 'correct-horse';
     const created = await request.post('/api/users', { data: { email, password } });
-    // Seed must succeed before the test runs — otherwise failures downstream
+    // Seed must succeed before the test runs. Otherwise failures downstream
     // look like product bugs when they're really "the user was never created".
     expect(created.ok(), `seed user create failed: ${created.status()}`).toBeTruthy();
     await use({ email, password });          // <- test runs here
@@ -72,7 +72,7 @@ The teardown (deleting the user) runs automatically after every test that used t
 
 Worker-scoped fixtures initialise once per worker process and are shared across the tests that worker runs. Mark with `{ scope: 'worker' }`, and don't put per-test mutable state there.
 
-The highest-value use for worker scope is **per-worker auth**. If every parallel test reuses one shared storageState, every parallel test is acting as the same user — one test mutating that user's state while another asserts on it is exactly the shared-mutable-state flake the isolation rules are meant to prevent. Give each worker its own account instead. This is the same pattern shown in `anti-flake.md` under "Auth once per worker, reuse everywhere", expressed here as a fixture:
+The highest-value use for worker scope is **per-worker auth**. If every parallel test reuses one shared storageState, every parallel test is acting as the same user. One test mutating that user's state while another asserts on it is exactly the shared-mutable-state flake the isolation rules are meant to prevent. Give each worker its own account instead. This is the same pattern shown in `anti-flake.md` under "Auth once per worker, reuse everywhere", expressed here as a fixture:
 
 ```ts
 import { test as base, expect, request } from '@playwright/test';
@@ -86,7 +86,7 @@ export const test = base.extend<{}, WorkerFixtures>({
     const email = `worker_${workerInfo.workerIndex}_${crypto.randomUUID()}@example.com`;
     const password = 'correct-horse';
 
-    // Provision via API. Assert the seed — a failure here shouldn't look
+    // Provision via API. Assert the seed. A failure here shouldn't look
     // like a login bug later.
     const api = await request.newContext({ baseURL: process.env.BASE_URL });
     const created = await api.post('/api/users', { data: { email, password } });

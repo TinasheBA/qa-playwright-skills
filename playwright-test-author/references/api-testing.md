@@ -96,8 +96,8 @@ test('a placed order appears in the order history UI', async ({ page, request })
   const res = await request.post('/api/orders', {
     data: { sku: 'ABC-1', qty: 2 },
   });
-  // Seed must succeed before the UI assertion is meaningful — otherwise a
-  // failed seed masquerades as a UI bug.
+  // Seed must succeed before the UI assertion is meaningful. A failed
+  // seed otherwise masquerades as a UI bug.
   expect(res.ok(), `order seed failed: ${res.status()}`).toBeTruthy();
   const { id } = await res.json();
 

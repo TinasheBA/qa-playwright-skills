@@ -109,7 +109,7 @@ POM keeps selectors and page actions in one place, so a UI change is a one-line 
 
 ## Authentication
 
-Logging in through the UI at the start of every test is slow and flaky. Log in once **per worker**, save the storage state, and reuse it — a single shared storageState across parallel workers puts every test into the same user account, which re-creates the shared-mutable-state flake this suite otherwise avoids. Pattern in `references/anti-flake.md` (the "Auth once per worker, reuse everywhere" section), or as a worker-scoped fixture in `references/fixtures-config-and-ci.md`.
+Logging in through the UI at the start of every test is slow and flaky. Log in once **per worker**, save the storage state, and reuse it. A single shared storageState across parallel workers puts every test into the same user account, which re-creates the shared-mutable-state flake this suite otherwise avoids. Pattern in `references/anti-flake.md` (the "Auth once per worker, reuse everywhere" section), or as a worker-scoped fixture in `references/fixtures-config-and-ci.md`.
 
 ## API testing essentials
 

@@ -31,7 +31,7 @@ Playwright auto-waits for an element to be attached, visible, stable, and enable
 
 ## Wait for a network response, not for time
 
-When an action triggers a request whose result you care about, wait for the response explicitly. Set up the wait *first*, then trigger the action, then await the wait — otherwise the response can arrive before you begin listening, and you'll spend an afternoon working out why.
+When an action triggers a request whose result you care about, wait for the response explicitly. Set up the wait *first*, then trigger the action, then await the wait. Otherwise the response can arrive before you begin listening, and you'll spend an afternoon working out why.
 
 ```ts
 const orderResponse = page.waitForResponse(r =>
@@ -43,11 +43,11 @@ expect(response.ok()).toBeTruthy();
 await expect(page.getByText('Order confirmed')).toBeVisible();
 ```
 
-You'll see the same pattern written as `Promise.all([page.waitForResponse(...), click()])` in older code and in some parts of the Playwright docs — same guarantee, just wraps the two calls together. Both are correct; the form above is easier to read and easier to add extra assertions to between the click and the await.
+You'll see the same pattern written as `Promise.all([page.waitForResponse(...), click()])` in older code and in some parts of the Playwright docs. Same guarantee, just wraps the two calls together. Both are correct; the form above is easier to read and easier to add extra assertions to between the click and the await.
 
 ## Auth once *per worker*, reuse everywhere
 
-Logging in through the UI in every test is slow and a common flake source. Do it once in a setup project and reuse the saved session — but do it **per worker**, not once for the whole suite.
+Logging in through the UI in every test is slow and a common flake source. Do it once in a setup project and reuse the saved session, but do it **per worker**, not once for the whole suite.
 
 Why per worker matters: if every parallel test uses the same storageState, every parallel test is acting as the same user. The moment one test mutates that user's state (deletes an order, changes a setting) while another asserts on it, you re-create the shared-mutable-state flake this skill is trying to prevent. Per-worker auth gives each parallel worker its own account, so per-test isolation actually holds under parallelism.
 
@@ -104,7 +104,7 @@ Parallel workers collide when tests share the same fixed data. Generate unique v
 const email = `user_${crypto.randomUUID()}@example.com`;
 ```
 
-`crypto.randomUUID()` is bulletproof against collision — timestamps can collide when two tests in the same worker start within the same millisecond, and appending a worker index only papers over that. UUID replaces both.
+`crypto.randomUUID()` is bulletproof against collision. Timestamps can collide when two tests in the same worker start within the same millisecond, and appending a worker index only papers over that. UUID replaces both.
 
 Create the data through the API where you can (fast, reliable) and delete it afterward so runs don't accumulate state. If a test creates a record, it should be responsible for removing it.
 

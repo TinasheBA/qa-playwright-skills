@@ -32,7 +32,7 @@ When an author reviews its own work, it shares the blind spots that caused the g
 
 ## How to use them
 
-**Install:** copy each skill folder (`playwright-test-author/` and `qa-test-reviewer/`) into your assistant's skills directory. Each folder — its `SKILL.md` plus `references/` — is self-contained. If your setup wants a `.skill` archive instead of a folder, zip the folder (`zip -r playwright-test-author.skill playwright-test-author`) and save the archive with your assistant's "Save skill" flow.
+**Install:** copy each skill folder (`playwright-test-author/` and `qa-test-reviewer/`) into your assistant's skills directory. Each folder is self-contained: `SKILL.md` plus `references/`. If your setup wants a `.skill` archive instead of a folder, zip the folder (`zip -r playwright-test-author.skill playwright-test-author`) and save the archive with your assistant's "Save skill" flow.
 
 **Write:** ask in plain language.
 

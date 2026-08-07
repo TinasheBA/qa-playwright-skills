@@ -25,11 +25,11 @@ Two hard rules make the difference between real review and rubber-stamping.
 
 This matters most when reviewing tests that were just written, including your own or another AI's. The assumptions that produced a gap also hide it from the author, so a fresh adversarial pass with a checklist catches what self-review talks itself out of. Run this as a genuinely separate step, not a glance back at work you just did.
 
-A note on what this skill can and cannot do. Passes A and B share their definition of "good" with the `playwright-test-author` skill on purpose — they catch *drift* from that standard (a leftover sleep, an unmapped acceptance criterion, a hollow assertion). By construction they cannot catch a defect the standard itself does not forbid. That is what **Pass C: Beyond the rules** is for — a mandatory rules-agnostic step that asks what could still be broken in production even if everything else here is green. Run all three passes that apply. Skipping Pass C means the reviewer shares whatever blind spots the author skill has, which is exactly the failure mode two separate skills are supposed to prevent.
+A note on what this skill can and cannot do. Passes A and B share their definition of "good" with the `playwright-test-author` skill on purpose. They catch *drift* from that standard (a leftover sleep, an unmapped acceptance criterion, a hollow assertion), but they can't catch a defect the standard itself doesn't forbid. That's what **Pass C: Beyond the rules** is for: a mandatory rules-agnostic step that asks what could still be broken in production even if everything else here is green. Run all three passes that apply. Skipping Pass C means the reviewer shares whatever blind spots the author skill has, which is exactly the failure mode two separate skills are supposed to prevent.
 
 ## First, identify what you're reviewing
 
-Pick the passes that fit the input. Always run every pass that applies — Pass C in particular is mandatory whenever a plan or code is present, since it is the only pass that steps outside the shared standard.
+Pick the passes that fit the input. Always run every pass that applies. Pass C in particular is mandatory whenever a plan or code is present, since it's the only pass that steps outside the shared standard.
 
 - A test plan, test cases, or acceptance criteria (prose, table, spreadsheet, tickets). Run **Pass A: Coverage & test design**.
 - Test code (Playwright or otherwise). Run **Pass B: Code-level review**, using `references/playwright-code-smells.md` for Playwright specifics.
@@ -80,20 +80,20 @@ For each, point at the location and give the fix, briefly.
 
 ## Pass C: Beyond the rules
 
-Passes A and B are conformance-checking against a shared standard. That is useful — most real defects are drift — but it will silently pass anything the standard doesn't already forbid. Pass C is the only step that steps outside the rulebook. Do not skip it.
+Passes A and B are conformance-checking against a shared standard. That's useful (most real defects are drift), but it will silently pass anything the standard doesn't already forbid. Pass C is the only step that steps outside the rulebook. Don't skip it.
 
-For each acceptance criterion, feature, or notable test, force yourself to answer these deliberately, out loud, one at a time. If an answer is "nothing," write "nothing" — do not skip the question.
+For each acceptance criterion, feature, or notable test, force yourself to answer these deliberately, out loud, one at a time. If an answer is "nothing," write "nothing". Don't skip the question.
 
 - **What could break in production that no rule in this skill or the author skill mentions?** A domain-specific concern, a business-logic edge, a subtle timing case, an integration nobody thought to test.
 - **Which of these tests would still pass if the feature were quietly broken?** Mutation-testing instinct: if you inverted a condition or dropped a validation, would any assertion here notice?
 - **If I shipped exactly what's tested and nothing more, what breaks in production?** The unwritten test is the most expensive one.
 - **What's the worst input a hostile or careless user could send that no test mentions?** Not the obvious 400s, the awkward ones.
-- **What happens if a step half-succeeds — request sent, response lost, database updated but UI not refreshed?** Partial-failure states are where real users lose data.
+- **What happens if a step half-succeeds: request sent, response lost, database updated but UI not refreshed?** Partial-failure states are where real users lose data.
 - **Where does the plan or code assume something is "fine" without proving it?** An unchecked seed status, a "should never happen" comment, a race that "hasn't come up."
 
-Findings from Pass C are usually High severity even when they are short, because by construction the other passes cannot find them. State them as concrete missing tests, not as musings — "no test covers what happens when a placed order's payment webhook arrives after the user has already logged out" beats "consider async ordering."
+Findings from Pass C are usually High severity even when they're short, because the other passes structurally can't find them. State them as concrete missing tests, not as musings. "No test covers what happens when a placed order's payment webhook arrives after the user has already logged out" beats "consider async ordering."
 
-If Pass C produces nothing on a non-trivial suite, you probably didn't run it — go back and answer each question by name.
+If Pass C produces nothing on a non-trivial suite, you probably didn't run it. Go back and answer each question by name.
 
 ## How to report findings
 
@@ -133,4 +133,4 @@ Severity guide. **High**: a real user-facing path or contract with no coverage, 
 ## Reference files
 
 - `references/test-plan-rubric.md`. The full coverage and test-design checklist, with prompts for teasing out missing cases.
-- `references/playwright-code-smells.md`. Playwright/TypeScript-specific smells with before/after examples. Aligned with the `playwright-test-author` skill so the two agree on what "good" looks like — it catches drift *from* that standard, not defects *in* it. That's what Pass C is for.
+- `references/playwright-code-smells.md`. Playwright/TypeScript-specific smells with before/after examples. Aligned with the `playwright-test-author` skill so the two agree on what "good" looks like. It catches drift *from* that standard, not defects *in* it. That's what Pass C is for.

@@ -1,0 +1,28 @@
+# Two skills that tell people how to keep a test suite honest should not ship a
+# dead reference link or a frontmatter name that stopped matching its folder.
+# See validate_skills.py for what is checked and why.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate skill folders
+        run: python validate_skills.py

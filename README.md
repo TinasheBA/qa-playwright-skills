@@ -1,5 +1,7 @@
 # QA Playwright Skills
 
+[![CI](https://github.com/TinasheBA/qa-playwright-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/TinasheBA/qa-playwright-skills/actions/workflows/ci.yml)
+
 Two [Agent Skills](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) that make an AI assistant behave like a senior test-automation engineer when it's **writing** Playwright tests, and like a picky reviewer when it's **checking** them. They pair well, but each works on its own.
 
 Both are aimed at **Playwright + TypeScript** and cover **E2E (browser) and API** testing. The advice comes from [Playwright's own best-practices docs](https://playwright.dev/docs/best-practices) plus a fair amount of real-world scar tissue.
@@ -61,7 +63,20 @@ qa-test-reviewer/
   references/
     test-plan-rubric.md
     playwright-code-smells.md
+validate_skills.py
 ```
+
+## Validation
+
+`python validate_skills.py` checks both skills, and CI runs it on every push. For
+each skill folder it confirms that the frontmatter `name` still matches the folder
+(that name is how the skill gets invoked), that the description exists and fits
+inside the 1024-character limit, that every `references/*.md` mentioned in
+`SKILL.md` is really there, and that no file sits in `references/` unmentioned,
+since nothing would ever load it.
+
+It needs no dependencies. The frontmatter here is two keys, and pulling in a YAML
+library to read two keys is a dependency for nothing.
 
 ## License
 
